@@ -24,7 +24,7 @@ for (const path of scripts) {
 // Keep reusable modules independent of game content and old project imports.
 for (const path of sources) {
   const name = relative(root, path).replaceAll('\\', '/');
-  if (!/^src\/(engine|platform|core|rendering)\//.test(name)) continue;
+  if (name !== 'src/ui.js' && !/^src\/(engine|platform|core|rendering)\//.test(name)) continue;
   const source = readFileSync(path, 'utf8');
   for (const [, specifier] of source.matchAll(/from\s*['"]([^'"]+)['"]/g)) {
     const target = relative(root, resolve(dirname(path), specifier)).replaceAll('\\', '/');

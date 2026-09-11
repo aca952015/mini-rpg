@@ -125,7 +125,7 @@ export class ScrollView extends BaseComponent {
 
   // 处理鼠标按下
   handleMouseDown(x, y) {
-    if (!this.enabled) return false;
+    if (!this.enabled || !this.contains(x, y)) return false;
 
     // 检测滚动条区域
     if (x >= this.x + this.width - this.scrollBarWidth - 5) {
@@ -134,14 +134,19 @@ export class ScrollView extends BaseComponent {
       return true;
     }
 
-    // 检测内容点击
-    if (this.content && this.content.handleClick) {
+    // Press feedback must not execute the content's click action.
+    if (this.content && this.content.handleMouseDown) {
       const contentX = x + this.scrollX - this.x;
       const contentY = y + this.scrollY - this.y;
-      return this.content.handleClick(contentX, contentY);
+      return this.content.handleMouseDown(contentX, contentY);
     }
 
     return false;
+  }
+
+  handleClick(x, y) {
+    if (!this.enabled || !this.contains(x, y)) return null;
+    return this.content?.handleClick?.(x + this.scrollX - this.x, y + this.scrollY - this.y) || null;
   }
 
   // 处理鼠标拖拽

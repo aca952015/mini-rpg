@@ -394,7 +394,7 @@ export class UIEngine {
   }
 
   // 渲染（无数据版本）
-  render() {
+  render(renderOverlay) {
     // 清空画布
     this.ctx.fillStyle = this.theme.bg;
     this.ctx.fillRect(0, 0, this.width, this.height);
@@ -409,6 +409,9 @@ export class UIEngine {
 
     // 渲染根容器
     this.root.render(this.ctx);
+
+    // Application-managed overlays share this pass, below global notices.
+    renderOverlay?.(this.ctx);
 
     // 渲染通知（在最上层）
     this.noticeManager.render(this.ctx, this.width, this.height);
@@ -474,7 +477,7 @@ export class UIEngine {
 
   // 添加事件监听
   on(type, handler) {
-    this.eventManager.on(type, handler);
+    return this.eventManager.on(type, handler);
   }
 
   // 移除事件监听

@@ -1,6 +1,7 @@
-import { Viewport, ProgressBar } from '../engine/index.js';
+import { Viewport, ProgressBar, Button } from '../engine/index.js';
 import { drawTextWithShadow } from '../rendering/text.js';
 import { DEMO } from '../data/demo.js';
+import { GAME_ACTIONS } from '../game/actionTypes.js';
 
 export class DemoView extends Viewport {
   constructor() {
@@ -8,7 +9,13 @@ export class DemoView extends Viewport {
     this.top = 0;
     this.clicks = 0;
     this.progress = this.addChild(new ProgressBar({ height: 8, max: 10, progressColor: '#d8b474', trackColor: '#293947' }));
+    this.buttons = [
+      this.addChild(new Button({ text: DEMO.increment, action: GAME_ACTIONS.INCREMENT, height: 48, normalColor: '#806137' })),
+      this.addChild(new Button({ text: DEMO.effect, action: GAME_ACTIONS.EFFECT, height: 48, normalColor: '#284457' }))
+    ];
   }
+
+  setData(data) { this.clicks = data?.clicks ?? 0; }
 
   layout(width, height, safe) {
     this.width = width;
@@ -18,6 +25,11 @@ export class DemoView extends Viewport {
     this.progress.x = this.left;
     this.progress.y = this.top + 210;
     this.progress.width = Math.max(1, width - this.left - safe.right - 24);
+    this.buttons.forEach((button, index) => {
+      button.x = this.left;
+      button.width = this.progress.width;
+      button.y = height - safe.bottom - 140 + index * 62;
+    });
   }
 
   renderContent(ctx) {

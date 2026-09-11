@@ -69,49 +69,72 @@ export class UIEvent {
 // 事件发射器（用于组件）
 export class EventEmitter {
   constructor() {
-    this._listeners = {};
+    this._listeners = Object.create(null);
   }
 
   // 添加事件监听
   on(type, handler) {
-    if (!this._listeners[type]) {
-      this._listeners[type] = [];
-    }
-    this._listeners[type].push(handler);
+    return this._addListener(type, handler, false);
   }
 
   // 添加一次性事件监听
   once(type, handler) {
-    const wrapper = (...args) => {
-      handler.apply(this, args);
-      this.off(type, wrapper);
+    return this._addListener(type, handler, true);
+  }
+
+  _addListener(type, handler, once) {
+    if (!this._listeners[type]) this._listeners[type] = [];
+    const listener = { handler, once, active: true };
+    this._listeners[type].push(listener);
+
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      this._removeListener(type, listener);
     };
-    this.on(type, wrapper);
+  }
+
+  _removeListener(type, listener) {
+    listener.active = false;
+    const listeners = this._listeners[type];
+    if (!listeners) return;
+    const index = listeners.indexOf(listener);
+    if (index !== -1) listeners.splice(index, 1);
+    if (listeners.length === 0) delete this._listeners[type];
   }
 
   // 移除事件监听
   off(type, handler) {
-    if (!this._listeners[type]) return;
-    const index = this._listeners[type].indexOf(handler);
-    if (index !== -1) {
-      this._listeners[type].splice(index, 1);
-    }
+    const listeners = this._listeners[type];
+    if (!listeners) return;
+    const listener = listeners.find(candidate => candidate.handler === handler);
+    if (listener) this._removeListener(type, listener);
   }
 
   // 触发事件
   emit(type, ...args) {
-    if (!this._listeners[type]) return;
-    this._listeners[type].forEach(handler => {
-      handler.apply(this, args);
-    });
+    const listeners = this._listeners[type];
+    if (!listeners) return;
+
+    for (const listener of [...listeners]) {
+      if (!listener.active) continue;
+      if (listener.once) this._removeListener(type, listener);
+      listener.handler.apply(this, args);
+    }
   }
 
   // 移除所有事件监听
   removeAllListeners(type) {
     if (type) {
+      const listeners = this._listeners[type] || [];
+      for (const listener of listeners) listener.active = false;
       delete this._listeners[type];
     } else {
-      this._listeners = {};
+      for (const listeners of Object.values(this._listeners)) {
+        for (const listener of listeners) listener.active = false;
+      }
+      this._listeners = Object.create(null);
     }
   }
 }
@@ -124,34 +147,42 @@ export class EventManager {
 
   // 添加事件监听
   on(type, handler, context = null) {
-    if (!this._listeners.has(type)) {
-      this._listeners.set(type, []);
-    }
-
-    this._listeners.get(type).push({
-      handler,
-      context,
-      once: false
-    });
+    return this._addListener(type, handler, context, false);
   }
 
   // 添加一次性事件监听
   once(type, handler, context = null) {
-    if (!this._listeners.has(type)) {
-      this._listeners.set(type, []);
-    }
+    return this._addListener(type, handler, context, true);
+  }
 
-    this._listeners.get(type).push({
-      handler,
-      context,
-      once: true
-    });
+  _addListener(type, handler, context, once) {
+    if (!this._listeners.has(type)) this._listeners.set(type, []);
+    const listener = { handler, context, once, active: true };
+    this._listeners.get(type).push(listener);
+
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      this._removeListener(type, listener);
+    };
+  }
+
+  _removeListener(type, listener) {
+    listener.active = false;
+    const listeners = this._listeners.get(type);
+    if (!listeners) return;
+    const index = listeners.indexOf(listener);
+    if (index !== -1) listeners.splice(index, 1);
+    if (listeners.length === 0) this._listeners.delete(type);
   }
 
   // 移除事件监听
   off(type, handler) {
     if (!handler) {
       // 移除所有该类型的事件监听
+      const listeners = this._listeners.get(type) || [];
+      for (const listener of listeners) listener.active = false;
       this._listeners.delete(type);
       return;
     }
@@ -161,9 +192,11 @@ export class EventManager {
 
     for (let i = listeners.length - 1; i >= 0; i--) {
       if (listeners[i].handler === handler) {
+        listeners[i].active = false;
         listeners.splice(i, 1);
       }
     }
+    if (listeners.length === 0) this._listeners.delete(type);
   }
 
   // 触发事件
@@ -175,9 +208,8 @@ export class EventManager {
     const toCall = [...listeners];
 
     for (const listener of toCall) {
-      if (listener.once) {
-        this.off(type, listener.handler);
-      }
+      if (!listener.active) continue;
+      if (listener.once) this._removeListener(type, listener);
 
       if (listener.context) {
         listener.handler.call(listener.context, event);
@@ -194,6 +226,9 @@ export class EventManager {
 
   // 清空所有事件监听
   clear() {
+    for (const listeners of this._listeners.values()) {
+      for (const listener of listeners) listener.active = false;
+    }
     this._listeners.clear();
   }
 }

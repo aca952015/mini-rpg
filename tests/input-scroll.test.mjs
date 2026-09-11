@@ -6,6 +6,7 @@ import { Container } from '../src/engine/layout.js';
 import { ListView } from '../src/engine/listView.js';
 import { ScrollView } from '../src/engine/scrollView.js';
 import { Viewport } from '../src/engine/viewport.js';
+import { Button } from '../src/engine/button.js';
 
 function createHarness() {
   let handlers;
@@ -104,4 +105,17 @@ test('cancel clears the scroll owner and a later release cannot click', () => {
   assert.equal(list._isDragging, false);
   assert.deepEqual(actions, []);
   assert.equal(input.gesture, null);
+});
+
+test('ScrollView content buttons activate on release once, and remain scrollable', () => {
+  const { actions, currentView, handlers } = createHarness();
+  const scroll = new ScrollView({ x: 20, y: 100, width: 180, height: 100 });
+  const content = new Container({ width: 180, height: 300 });
+  const button = content.addChild(new Button({ x: 10, y: 10, width: 100, height: 60, action: 'select' }));
+  scroll.setContent(content); currentView.addChild(scroll);
+  let clicks = 0; button.on('click', () => clicks++);
+  handlers.start({ x: 50, y: 140 }); assert.equal(clicks, 0); assert.equal(button._isPressed, true);
+  handlers.end({ x: 50, y: 140 }); assert.equal(clicks, 1); assert.deepEqual(actions, [{ type: 'select' }]);
+  handlers.start({ x: 50, y: 150 }); handlers.move({ x: 50, y: 120 }); handlers.end({ x: 50, y: 120 });
+  assert.equal(clicks, 1); assert.equal(actions.length, 1); assert.equal(scroll.scrollY, 30);
 });

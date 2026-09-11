@@ -8,14 +8,19 @@
 - `src/main.js`：唯一主循环，更新步长为秒，最大 0.1 秒。负责暂停、恢复、尺寸变化和清理。
 - `src/platform/`：抖音与浏览器的 Canvas、图片、存储、输入、时钟、生命周期及安全区。
 - `src/engine/`：中立 UI 控件、视图、布局、事件、补间、粒子和精灵；不引用玩法数据。
+- `src/ui.js`：UIManager，统一页面导航、模态层、公共布局与输入优先级。
 - `src/rendering/text.js`：从原项目提取的文本绘制，避免引入整个业务工具模块。
-- `src/core/input.js`：平台手势接入，点击与拖动互斥；root 上层控件优先于当前视图。
+- `src/core/input.js`：平台手势接入，点击与拖动互斥；顶层模态优先，再到 root 公共控件与当前页面。
+- `src/core/actionRouter.js` / `actionTypes.js`：动作标准化、注册路由与通用 UI 动作/事件。
 - `src/core/storage.js`：命名空间 JSON 存储；当前示例使用独立键，不读取 mini-mmo 存档。
-- `src/ui/demoView.js` / `src/data/demo.js`：基础功能示例及文案，不是正式玩法。
+- `src/game/actionTypes.js`：本游戏动作与进度事件名称。
+- `src/ui/` / `src/data/demo.js`：训练、成长和确认弹窗的交互示例及文案，不是正式玩法。
 
 ## 时间、绘制与输入约定
 
-应用只调用 `engine.update(dt)` 和 `engine.render()`，不启动第二个引擎循环。引擎内部将秒转换为通知、补间和粒子所需的毫秒。应用退后台时停止动画帧并取消未完成手势并解绑输入，恢复后重新绑定主触点；恢复从新时刻开始，不补算后台时间。
+应用只调用 `uiManager.update(dt)` 和 `uiManager.render(viewData)`，不启动第二个引擎循环。引擎内部将秒转换为通知、补间和粒子所需的毫秒。应用退后台时停止动画帧并取消未完成手势并解绑输入，恢复后重新绑定主触点；恢复从新时刻开始，不补算后台时间。
+
+页面只产生动作，业务通过 ActionRouter 执行，结果通过共享 EventManager 广播；详见 [交互接入说明](interactions.md)。
 
 画布尺寸使用视口逻辑像素，浏览器输入按实际画布比例换算，不在本次引入高分屏双重缩放。交互区域避开平台安全区和顶部胶囊区域。现阶段基础手势支持单指点击/取消，以及 Viewport、Container 和 ScrollView content 常见嵌套中的 ListView/ScrollView 拖动。Panel、TabView 等自定义坐标组合、惯性与多指手势需在对应页面单独适配和验证。
 
@@ -31,6 +36,6 @@ JsonStore 的键名与结构校验由应用注入，基础模块不绑定示例�
 
 - 来源仓库基线：mini-mmo 提交 `bee553b`（读取本地工作树完成移植）。
 - 原工程 `game.json` 与 `project.config.json` 保持原值。
-- `npm run verify` 通过：30 项回归测试、30 个源模块的静态检查，未发现失败项。
+- 首轮引擎移植：30 项回归测试、30 个源模块检查通过。后续交互基础设施验证以 `npm run verify` 当前结果为准。
 - 浏览器可视验收未完成：本次浏览器工具的安全策略校验服务不可用，阻止打开本地预览；未绕过限制。
 - 抖音开发者工具及手机真机效果未实测，自动化测试的模拟平台结果不能替代真机结果。

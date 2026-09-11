@@ -15,6 +15,30 @@ function isAvailable(component) {
   return Boolean(component) && component.visible !== false && component.enabled !== false;
 }
 
+// Resolve click identity without calling handleClick (which may change selection or emit events).
+function findClickTarget(component, x, y) {
+  if (!isAvailable(component) || component.contains?.(x, y) === false) return null;
+  if (component instanceof Viewport || component instanceof Container) {
+    const localX = component instanceof Viewport ? x + component.scrollOffset.x : x - component.x;
+    const localY = component instanceof Viewport ? y + component.scrollOffset.y : y - component.y;
+    for (let index = component.children.length - 1; index >= 0; index--) {
+      const hit = findClickTarget(component.children[index], localX, localY);
+      if (hit) return hit;
+    }
+    const baseHandler = component instanceof Viewport ? Viewport.prototype.handleClick : Container.prototype.handleClick;
+    if (component.handleClick === baseHandler) return null;
+  }
+  if (component instanceof ScrollView) {
+    return findClickTarget(component.content, x + component.scrollX - component.x, y + component.scrollY - component.y);
+  }
+  if (component instanceof ListView) {
+    const key = component._getItemIndexAt(y);
+    if (key < 0 || key >= component._sortedItems.length) return null;
+    return { component, key, x, y };
+  }
+  return component.handleClick ? { component, x, y } : null;
+}
+
 function findScrollOwner(component, x, y) {
   if (!isAvailable(component) || (component.contains && !component.contains(x, y))) {
     return null;
@@ -70,21 +94,41 @@ export class InputController {
       move: (point) => this.move(point),
       end: (point) => this.end(point),
       cancel: () => this.cancel(),
-      hover: ({ x, y }) => engine.root.handleMouseMove(x, y),
+      hover: ({ x, y }) => this.layers()[0]?.handleMouseMove?.(x, y),
       leave: () => this.cancel()
     });
   }
 
+  layers() {
+    return this.engine.getInputLayers?.() || [this.engine.root, this.engine.currentView].filter(Boolean);
+  }
+
+  clickTarget(layers, point) {
+    for (const layer of layers) {
+      const target = findClickTarget(layer, point.x, point.y);
+      if (target) return target;
+    }
+    return null;
+  }
+
   start(point) {
     this.cancel();
-    const rootOwner = findScrollOwner(this.engine.root, point.x, point.y);
-    const rootCaptured = rootOwner
-      ? false
-      : this.engine.root.handleMouseDown(point.x, point.y);
-    const scrollOwner = rootOwner || (!rootCaptured
-      ? findScrollOwner(this.engine.currentView, point.x, point.y)
-      : null);
+    const layers = this.layers();
+    const pressTarget = this.clickTarget(layers, point);
+    let scrollOwner = null;
+    for (const layer of layers) {
+      scrollOwner = findScrollOwner(layer, point.x, point.y);
+      if (scrollOwner || findClickTarget(layer, point.x, point.y)) break;
+    }
+    // Press only the resolved control, never ScrollView.handleMouseDown, which invokes content clicks.
+    if (pressTarget && !(pressTarget.component instanceof ListView)) {
+      pressTarget.component.handleMouseDown?.(pressTarget.x, pressTarget.y);
+    }
     this.gesture = {
+      layers,
+      pressTarget,
+      boundaries: layers.map((layer) => layer.contains?.(point.x, point.y) !== false),
+      revision: this.engine.inputRevision,
       start: point,
       last: point,
       dragged: false,
@@ -98,10 +142,10 @@ export class InputController {
   move(point) {
     const g = this.gesture;
     if (!g) return;
+    if (g.revision !== this.engine.inputRevision) { this.cancel(); return; }
     g.dragged ||= Math.hypot(point.x - g.start.x, point.y - g.start.y) > 10;
     if (g.dragged) {
-      clearPressed(this.engine.root);
-      clearPressed(this.engine.currentView);
+      g.layers.forEach(clearPressed);
       if (g.scrollOwner) {
         const ownerX = point.x + g.ownerOffset.x;
         const ownerY = point.y + g.ownerOffset.y;
@@ -120,12 +164,22 @@ export class InputController {
   end(point) {
     if (!this.gesture) return;
     this.move(point);
-    const { dragged } = this.gesture;
+    if (!this.gesture) return;
+    const { dragged, pressTarget, layers, boundaries } = this.gesture;
+    const releaseTarget = this.clickTarget(layers, point);
+    const sameTarget = pressTarget?.component === releaseTarget?.component && pressTarget?.key === releaseTarget?.key;
+    const sameBoundary = layers.every((layer, index) => (layer.contains?.(point.x, point.y) !== false) === boundaries[index]);
     this.cancel();
-    if (dragged) return;
+    if (dragged || !sameTarget || !sameBoundary) return;
     // Root overlays have priority over the underlying view.
-    const action = this.engine.root.handleClick(point.x, point.y)
-      || this.engine.currentView?.handleClick(point.x, point.y);
+    let action;
+    if (this.engine.handleClick) action = this.engine.handleClick(point.x, point.y);
+    else {
+      for (const layer of this.layers()) {
+        action = layer.handleClick?.(point.x, point.y);
+        if (action) break;
+      }
+    }
     if (action && typeof action === 'object') this.onAction(action);
   }
 
@@ -138,9 +192,9 @@ export class InputController {
         last.y + this.gesture.ownerOffset.y
       );
     }
+    this.gesture?.layers.forEach(clearPressed);
     this.gesture = null;
-    clearPressed(this.engine.root);
-    clearPressed(this.engine.currentView);
+    this.layers().forEach(clearPressed);
   }
 
   destroy() {
