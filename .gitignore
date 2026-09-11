@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+._*
+
+# Local editor and developer-tool state
+.idea/
+.vscode/
+.dy-game-cache/
+project.private.config.json
+
+# Local agent runtime state
+.omx/
+
+# Dependencies, generated builds and logs
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Local credentials
+.env
+.env.*
+!.env.example
