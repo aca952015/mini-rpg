@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>mini-rpg · 引擎示例</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111d28; }
+    canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+    #boot-status { position: fixed; inset: 0; padding: 32px; color: #f3ead8; background: #111d28; font: 16px/1.6 sans-serif; }
+    #boot-status[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="game-canvas" aria-label="射箭冒险基础功能示例"></canvas>
+  <div id="boot-status" role="status">正在启动…</div>
+  <script type="module" src="./web.js"></script>
+</body>
+</html>
